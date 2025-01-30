@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        /* General Styles */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(to right, #2e71b4, #167e8b);
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        h1 {
+            color: #ffffff;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        /* Form Styles */
+        form {
+            background-color: #ffffff;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        select,
+        input[type="number"],
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+
+        /* Button */
+        button {
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #167e8b;
+        }
+
+        /* Dropdown and Input Focus */
+        select:focus,
+        input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding-top: 60px;
+        }
+
+        .modal-content {
+            background-color: #ffffff;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #007bff;
+            width: 80%;
+            max-width: 400px;
+            text-align: center;
+            font-weight: 900;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+    </style>
+    <title>Car Price Prediction</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <h1>Car Price Prediction</h1>
+    <form id="prediction-form">
+        <label for="company">Select Company:</label>
+        <select id="company" name="company" required>
+            <option>Select Company</option>
+            {% for company in companies %}
+            <option value="{{ company }}">{{ company }}</option>
+            {% endfor %}
+        </select>
+        
+        <label for="car_models">Select Model:</label>
+        <select id="car_models" name="car_models" required>
+            <option>Select Model</option>
+        </select>
+        
+        <label for="year">Select Year:</label>
+        <select id="year" name="year" required>
+            {% for y in years %}
+            <option value="{{ y }}">{{ y }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="fuel_type">Select Fuel Type:</label>
+        <select id="fuel_type" name="fuel_type" required>
+            {% for fuel in fuel_types %}
+            <option value="{{ fuel }}">{{ fuel }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="kilo_driven">Kilometers Driven:</label>
+        <input type="number" id="kilo_driven" name="kilo_driven" required>
+
+        <button type="submit">Predict Price</button>
+    </form>
+
+    <!-- Modal for displaying prediction result -->
+    <div id="predictionModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <p id="predictionResult">Predicted Price: ₹</p>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function () {
+            // Load car models when company is selected
+            $('#company').change(function () {
+                const company = $(this).val();
+                if (company !== "Select Company") {
+                    $.ajax({
+                        url: '/get_models',
+                        type: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({ company: company }),
+                        success: function (response) {
+                            const modelsDropdown = $('#car_models');
+                            modelsDropdown.empty();
+                            modelsDropdown.append('<option>Select Model</option>');
+                            response.models.forEach(function (model) {
+                                modelsDropdown.append(`<option value="${model}">${model}</option>`);
+                            });
+                        },
+                        error: function () {
+                            alert('Error fetching car models.');
+                        }
+                    });
+                }
+            });
+
+            // Handle form submission via AJAX
+            $('#prediction-form').submit(function (event) {
+                event.preventDefault();  // Prevent page refresh
+                const formData = $(this).serialize();
+
+                $.ajax({
+                    url: '/predict',
+                    type: 'POST',
+                    data: formData,
+                    success: function (response) {
+                        if (response.predicted_price) {
+                            // Show modal with predicted price
+                            $('#predictionResult').text(`Predicted Price: ₹${response.predicted_price}`);
+                            $('#predictionModal').show();
+                        } else if (response.error) {
+                            alert(response.error);
+                        }
+                    },
+                    error: function () {
+                        alert('An error occurred while making the prediction.');
+                    }
+                });
+            });
+
+            // Close modal when 'x' is clicked
+            $('.close').click(function () {
+                $('#predictionModal').hide();
+            });
+
+            // Close modal when clicking outside of the modal content
+            $(window).click(function (event) {
+                if ($(event.target).is('#predictionModal')) {
+                    $('#predictionModal').hide();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
